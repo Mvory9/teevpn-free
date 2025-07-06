@@ -1,0 +1,39 @@
+{
+    "name": "teevpn-free",
+    "version": "1.0.0",
+    "description": "Free (& opensource) version of TeeVPN",
+    "main": "src/index.js",
+    "scripts": {
+        "start": "node src/index.js",
+        "dev": "nodemon src/index.js"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/Mvory9/teevpn-free.git"
+    },
+    "keywords": [
+        "teevpn",
+        "telegram",
+        "tg",
+        "vpn",
+        "wireguard",
+        "amneziawg",
+        "free",
+        "wg",
+        "awg",
+        "teegroup"
+    ],
+    "author": "Mvory9",
+    "license": "MIT",
+    "type": "module",
+    "bugs": {
+        "url": "https://github.com/Mvory9/teevpn-free/issues"
+    },
+    "homepage": "https://github.com/Mvory9/teevpn-free#readme",
+    "dependencies": {
+        "dotenv": "^17.0.1",
+        "mongoose": "^8.16.1",
+        "puregram": "^2.26.8",
+        "wg-easy-api": "^2.1.0"
+    }
+}
