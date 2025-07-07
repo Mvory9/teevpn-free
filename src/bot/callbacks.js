@@ -28,7 +28,10 @@ export function initCallbacks() {
                 `Тебе доступно <b>1 ГБ ежедневного трафика</b>, который сбрасывается каждый день в полночь. 🌙\n\n` +
                 `Если у тебя есть вопросы или нужна помощь, просто напиши мне!`;
 
-            await sendMessage(context.from.id, text, { parse_mode: "html" });
+            const keyboard = new InlineKeyboardBuilder()
+                .text({ text: "Начать", payload: "start" });
+
+            await sendMessage(context.from.id, text, { parse_mode: "html", reply_markup: keyboard });
             return;
         }
 
@@ -57,5 +60,27 @@ export function initCallbacks() {
 
             return;
         }
+
+        if (context.text.toLowerCase() === "/start") {
+            const { firstName, lastName } = context.from;
+            const fullName = `${firstName || ""} ${lastName || ""}`.trim() || "Пользователь";
+
+            const text =
+                `Привет, <b>${fullName}</b>! 👋\n\n` +
+                `Я бот для управления бесплатным VPN от <a href="${process.env.ORIGINAL_PROJECT}">${process.env.ORIGINAL_PROJECT_NAME}</a>.\n` +
+                `Ты можешь использовать бесплатный VPN с <b>1 ГБ ежедневного трафика</b>, который сбрасывается каждый день в полночь. 🌙\n\n` +
+                `Помощь можно получить по команде /help либо у технической поддержки.\n\n` +
+                `Чтобы начать, просто используй кнопки ниже! 🚀\n`;
+
+            const keyboard = new InlineKeyboardBuilder()
+                .textButton({ text: "🛒 Получить конфигурацию", payload: "get_config" })
+                .textButton({ text: "Мои конфигурации", payload: "my_config" })
+                .row()
+                .urlButton({ text: "💬 Техническая поддержка", url: process.env.SUPPORT_LINK });
+
+            await sendMessage(context.from.id, text, { parse_mode: "html", reply_markup: keyboard });
+        }
+
+        
     });
 }

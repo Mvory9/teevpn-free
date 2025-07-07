@@ -51,7 +51,7 @@ class MongoDB {
             await user.save();
             return user;
         } catch (error) {
-            console.error("[ERROR] Failed to createUser() in MongoDB:", error);
+            console.error("[ERROR] Failed to regUser() in MongoDB:", error);
         }
     }
 }

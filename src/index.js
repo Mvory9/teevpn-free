@@ -27,6 +27,10 @@ async function main() {
             throw new Error("ORIGINAL_PROJECT_NAME is not set in the environment variables.");
         }
 
+        if (!process.env.SUPPORT_LINK) {
+            throw new Error("SUPPORT_LINK is not set in the environment variables.");
+        }
+
         // DB connection
         await db.connect();
 
