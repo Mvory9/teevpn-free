@@ -124,6 +124,15 @@ class MongoDB {
             console.error("[ERROR] Failed to getConfigs() in MongoDB:", error);
         }
     }
+
+    async setConfig(filter, update) {
+        try {
+            const config = await Config.updateOne(filter, update).exec();
+            return config;
+        } catch (error) {
+            console.error("[ERROR] Failed to setConfig() in MongoDB:", error);
+        }
+    }
 }
 
 const db = new MongoDB(process.env.MONGODB_URL);

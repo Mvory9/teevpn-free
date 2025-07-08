@@ -1,7 +1,10 @@
 import { InlineKeyboardBuilder } from "puregram";
-import { createWireGuardClient, formatBytes } from "../services/wireguard.js";
-import { sendMessage, telegram } from "./telegram.js";
+import { createWireGuardClient, getWireGuardClientDataByConfigId, getWireguardClientConfig, configEdit, formatBytes } from "../services/wireguard.js";
+import { telegram, sendMessage, sendPhoto } from "./telegram.js";
+import { generateQR } from "../services/qrcode.js";
 import db from "../db/mongodb.js";
+
+const SWITCH_COUNTRY = "s_c";
 
 export function initCallbacks() {
     telegram.updates.on("callback_query", async (context) => {
@@ -303,22 +306,30 @@ export function initCallbacks() {
                 return;
             }
 
-            const configData = await getWireGuardClientDataByConfigId(server, configId);
             const server = await db.getServer({ serverLocationName: config.serverLocationName });
             const country = await db.getCountry({ country: server.country });
+            const configData = await getWireGuardClientDataByConfigId(server, configId);
 
             const protocolLabel = server.type === "wg" ? "WireGuard" : "AmneziaWG";
 
-            const text = `<b>🔐 VPN: ${country.flag} ${server.serverName} (${protocolLabel})${config.customName ? ` (${config.customName})` : ""}</b>\n\n` +
-                `🌍 ${country.city} (${server.serverName})\n` +
+            const features = [];
+            if (server.properties.youtubeNoAds) features.push("📺 YouTube без рекламы");
+            if (server.properties.gemini) features.push("🤖 Доступ к Gemini");
+            if (server.properties.monthlyIpChange) features.push("🔄 IP меняется ежемесячно");
+
+            const featuresText = features.length ? 
+                `\n\n✨ <b>Особенности сервера:</b>\n${features.join("\n")}` : 
+                "\n\n✨ <b>Особенности:</b> Базовые";
+
+            const text = `<b>🔐 VPN: ${country.flag} ${server.country} (${protocolLabel}) ${config.customName ? `- ${config.customName}` : ""}</b>\n\n` +
+                `🌍 ${country.city} (${server.country})\n` +
                 `📡 Протокол: <b>${protocolLabel}</b>\n` +
                 `🤝 Последнее соединение: ${configData.latestHandshakeAt || 'Никогда'}\n` +
                 `📶 Трафик за последнее время:\n` +
                 `  ↗️ Отправлено: ${formatBytes(configData.transferTx || 0)}\n` +
                 `  ↙️ Принято: ${formatBytes(configData.transferRx || 0)}` +
                 featuresText + 
-                `\n\n📢 <b>Сообщить о проблеме</b>: ${reportStatus}\n\n` +
-                `<b>✏️ Как изменить название?</b>\n` +
+                `\n\n<b>✏️ Как изменить название?</b>\n` +
                 `<code>/rename ${config.configId} [название]</code>\n` +
                 `📝 Название до 20 символов.\n` +
                 `🔄 Для сброса: <code>/rename ${config.configId} сброс</code>\n\n`;
@@ -326,32 +337,48 @@ export function initCallbacks() {
             const keyboard = new InlineKeyboardBuilder()
                 .textButton({
                     text: `📂 ${protocolLabel} .conf`,
-                    payload: `${server.type}_${server.serverName}_${configId}`
+                    payload: `${server.typeProtocol}_${server.serverLocationName}_${configId}`
                 })
                 .textButton({ text:
                     `🔐 ${protocolLabel} QR`,
-                    payload: `qr_${server.type}_${server.serverName}_${configId}`
+                    payload: ` ${server.serverLocationName}_${configId}`
                 })
                 .row()
-                .textButton({ 
-                    text: configData.enabled ? "🚫 Отключить" : "✅ Включить", 
-                    payload: configData.enabled ? `disable_${serverName}_${configId}` : `enable_${serverName}_${configId}` 
-                })
-                .textButton({ text: "🗑️ Удалить", payload: `delete_${serverName}_${configId}` })
+                .textButton({ text: "🗑️ Удалить", payload: `delete_${server.serverLocationName}_${configId}` })
                 .row()
                 .textButton({ 
                     text: "🌍 Переключить страну", 
                     payload: `${SWITCH_COUNTRY}_start_${configId}` 
-                }).row();
-
-            if (!config.isTrial) {
-                keyboard.textButton({ text: "💸 Оплатить и продлить", payload: `pay_config_${serverName}_${configId}` }).row();
-            }
-            keyboard
-                .urlButton({ text: "📢 Сообщить о проблеме", url: process.env.SUPPORT_LINK }).row()
-                .textButton({ text: "🔙 Назад", payload: `vpn_page_1` });
+                })
+                .row()
+                .textButton({ text: "🔙 Назад", payload: `my_configs_1` });
 
             await sendMessage(context.from.id, text, { parse_mode: "html", reply_markup: keyboard });
+        }
+
+        if (context.queryPayload.startsWith("qr_")) {
+            const serverLocationName = context.queryPayload.split("_")[1];
+            const configId = context.queryPayload.split("_")[2];
+
+            const server = await db.getServer({ serverLocationName });
+            const configData = await getWireguardClientConfig(server, configId);
+            
+            const protocolLabel = server.type === "wg" ? "WireGuard" : "AmneziaWG";
+
+            const modifiedConfig = await configEdit(JSON.stringify(configData.data), protocolLabel);
+
+            const url = await generateQR(modifiedConfig);
+            const text = `📷 QR-код ${protocolLabel} для ${server.serverLocationName}`;
+            const keyboard = new InlineKeyboardBuilder()
+                .textButton({
+                    text: "🔙 Назад",
+                    payload: `config_${configId}`
+                });
+
+            await sendPhoto(context.from.id, url, text, {
+                parse_mode: "html",
+                reply_markup: keyboard
+            });
         }
     });
 }

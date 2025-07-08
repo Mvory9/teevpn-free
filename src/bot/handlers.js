@@ -98,5 +98,38 @@ export function initHandlers() {
             await sendMessage(context.from.id, text, { parse_mode: "html" });
             return;
         }
+
+        if (context.text.startsWith("/rename")) {
+            const configId = context.text.split(" ")[1];
+            const configNewName = context.text.split(" ").slice(2).join(" ").slice(0, 20);
+
+            if (!configId || !configNewName) {
+                await sendMessage(context.from.id, "❌ Неверный формат команды. Используйте: /rename <configId> <новое имя>");
+                return;
+            }
+
+            const config = await db.getConfig({ configId });
+            if (!config) {
+                const keyboard = new InlineKeyboardBuilder()
+                    .textButton({ text: "💼 Мои VPN", payload: "my_configs_1" });
+
+                await sendMessage(context.from.id, "❌ Конфигурация не найдена. Проверьте ID.", {
+                    parse_mode: "html",
+                    reply_markup: keyboard
+                });
+
+                return;
+            }
+
+            await db.setConfig({ telegramId: context.from.id, configId }, { customName: configNewName });
+
+            const keyboard = new InlineKeyboardBuilder()
+                    .textButton({ text: "💼 Мои VPN", payload: "my_configs_1" });
+
+            await sendMessage(context.from.id, `✅ Конфигурация успешно переименована в "${configNewName}".`, {
+                parse_mode: "html",
+                reply_markup: keyboard
+            });
+        }
     });
 }

@@ -1,4 +1,4 @@
-import { Telegram } from "puregram";
+import { Telegram, MediaSource } from "puregram";
 import "dotenv/config";
 
 export const telegram = new Telegram({
@@ -28,4 +28,21 @@ export async function sendMessage(chatId, text, options = {}) {
     }
 
     const result = await telegram.api.sendMessage(data);
+}
+
+export async function sendPhoto(chatId, base64Data, caption, options = {}) {
+    try {
+        const cleanBase64 = base64Data.replace(/^data:image\/\w+;base64,/, "");
+        const buffer = Buffer.from(cleanBase64, "base64");
+        const photo = MediaSource.buffer(buffer, { filename: "image.png" });
+        await telegram.api.sendPhoto({
+            chat_id: chatId,
+            photo,
+            caption,
+            ...options
+        });
+    } catch (error) {
+        console.log(`[ERROR]:[${chatId}] Ошибка при отправке фото:`, error);
+        throw new Error(`Ошибка при отправке фото: ${error.message}`);
+    }
 }

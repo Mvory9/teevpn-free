@@ -74,7 +74,7 @@ export async function getWireGuardClientDataByName(server, name) {
 
         return null;
     } catch (error) {
-        console.error(`[ERROR]:[${server.serverName}] Ошибка при получении данных клиента с именем ${name}:`, error);
+        console.error(`[ERROR]:[${server.serverLocationName}] Ошибка при получении данных клиента с именем ${name}:`, error);
         throw new Error(error.message);
     }
 }
@@ -160,6 +160,23 @@ export async function switchWireGuardConfig(oldServer, newServer, telegramId, ol
         console.error(`[ERROR]:[${telegramId}] Ошибка при переключении конфигурации с ${oldserverLocationName} (${oldConfigId}) на ${newserverLocationName}:`, error);
         throw new Error(error.message);
     }
+}
+
+export async function getWireguardClientConfig(server, clientId) {
+    try {
+        const wgapi = new WireGuardAPI(server.webProtocol, server.ip, server.panelPort || 51821, server.panelPassword);
+        await wgapi.initSession({ password: server.panelPassword });
+
+        const client = await wgapi.getClientConfig({ clientId });
+        return client;
+    } catch (error) {
+        console.log(`[ERROR]:[${server.serverLocationName}] Ошибка при получении конфигурации WireGuard клиента с ID ${clientId} на сервере ${server.serverLocationName}:`, error);
+        throw new Error(error.message);
+    }
+}
+
+export function configEdit(configText, protocolLabel) {
+    return configText;
 }
 
 export function formatBytes(bytes) {
