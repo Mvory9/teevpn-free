@@ -10,6 +10,7 @@ const userSchema = new mongoose.Schema({
 
 const configSchema = new mongoose.Schema({
     telegramId: { type: String, required: true }, // 112233445
+    configId: { type: String, required: true }, // 3d8bbfde-0c62-474c-a84c-0368c02cd90d
     createDate: { type: Date, default: Date.now }, // 1744588800000 (timestamp with ms)
     serverLocationName: { type: String, required: true }, // "FR-PA-01", "DE-FR-01" etc.
     customName: { type: String, required: true }, // "for phone", "pc in my room", "on tv", "for my mother" etc.
