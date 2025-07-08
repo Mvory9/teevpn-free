@@ -11,19 +11,23 @@ const userSchema = new mongoose.Schema({
 const configSchema = new mongoose.Schema({
     telegramId: { type: String, required: true }, // 112233445
     configId: { type: String, required: true }, // 3d8bbfde-0c62-474c-a84c-0368c02cd90d
-    createDate: { type: Date, default: Date.now }, // 1744588800000 (timestamp with ms)
+    createDate: { type: Number, default: Date.now }, // 1744588800000 (timestamp with ms)
     serverLocationName: { type: String, required: true }, // "FR-PA-01", "DE-FR-01" etc.
-    customName: { type: String, required: true }, // "for phone", "pc in my room", "on tv", "for my mother" etc.
+    customName: { type: String, default: null }, // "for phone", "pc in my room", "on tv", "for my mother" etc.
+    trafficLimitGB: { type: Number, required: true }, // 1, 3, 5 etc.
 });
 
 const countrySchema = new mongoose.Schema({
-    country: { type: String, required: true }, // "France", "Germany", etc.
-    city: { type: String, required: true }, // "Paris", "Frankfurt", etc.
-    flag: { type: String, required: true }, // "🇫🇷", "🇩🇪", etc.
+    country: { type: String, required: true }, // "Франция", "Германия", etc.
+    countryEn: { type: String, required: true }, // "France", "Germany", etc.
+    city: { type: String, required: true }, // "Париж", "Франкфурт", etc.
+    cityEn: { type: String, required: true }, // "Paris", "Frankfurt", etc.
+    flag: { type: String, required: true } // "🇫🇷", "🇩🇪", etc.
 });
 
 const serverSchema = new mongoose.Schema({
     serverLocationName: { type: String, required: true }, // "FR-PA-01", "DE-FR-01" etc.
+    country: { type: String, required: true }, // "France", "Germany", etc.
     city: { type: String, required: true }, // "Paris", "Frankfurt", etc.
     webProtocol: { type: String, required: true }, // "http", "https", etc.
     typeProtocol: { type: String, required: true }, // "wg", "awg", etc.
@@ -33,7 +37,7 @@ const serverSchema = new mongoose.Schema({
     serverCost: { type: Number, required: true }, // 420.0
     hostingProvider: { type: String, required: true }, // "Hetzner", "OVH", etc.
     configsLimit: { type: Number, required: true }, // 500
-    properties: { type: Object, required: true }, // { "gemini": false, "youtubeNoAds": true, "monthlyIpChange": false }
+    properties: { type: Object, required: true } // { "gemini": false, "youtubeNoAds": true, "monthlyIpChange": false }
 });
 
 export const User = mongoose.model('User', userSchema);

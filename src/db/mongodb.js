@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import { User } from "./schemas.js";
+import { User, Country, Server, Config } from "./schemas.js";
 import "dotenv/config";
 
 class MongoDB {
@@ -35,9 +35,7 @@ class MongoDB {
     async getUser(telegramId) {
         try {
             const user = await User.findOne({ telegramId });
-
-            if (user) return user;
-            else return null;
+            return user;
         } catch (error) {
             console.error("[ERROR] Failed to getUser() in MongoDB:", error);
         }
@@ -52,6 +50,78 @@ class MongoDB {
             return user;
         } catch (error) {
             console.error("[ERROR] Failed to regUser() in MongoDB:", error);
+        }
+    }
+
+    async getCountry(filter) {
+        try {
+            const country = await Country.findOne(filter).exec();
+            return country;
+        } catch (error) {
+            console.error("[ERROR] Failed to getCountries() in MongoDB:", error);
+        }
+    }
+
+    async getCountries(filter = null) {
+        try {
+            const countries = await Country.find(filter).exec();
+            return countries;
+        } catch (error) {
+            console.error("[ERROR] Failed to getCountries() in MongoDB:", error);
+        }
+    }
+
+    async getServer(filter) {
+        try {
+            const server = await Server.findOne(filter).exec();
+            return server;
+        } catch (error) {
+            console.error("[ERROR] Failed to getServer() in MongoDB:", error);
+        }
+    }
+
+    async getServersByCountry(countryEn) {
+        try {
+            const countries = await this.getCountry({ countryEn });
+            const servers = await Server.find({ country: countries.country }).exec();
+            return servers;
+        } catch (error) {
+            console.error("[ERROR] Failed to getServersByCountry() in MongoDB:", error);
+        }
+    }
+
+    async createConfig({ telegramId, configId, serverLocationName, customName, trafficLimitGB = 1 }) {
+        try {
+            const config = new Config({
+                telegramId: telegramId,
+                configId,
+                createDate: Date.now(),
+                serverLocationName,
+                customName: null,
+                trafficLimitGB // 1 GB for free clients
+            }).save();
+
+            return config;
+        } catch (error) {
+            console.error("[ERROR] Failed to createConfig() in MongoDB:", error);
+        }
+    }
+
+    async getConfig(filter) {
+        try {
+            const config = await Config.findOne(filter).exec();
+            return config;
+        } catch (error) {
+            console.error("[ERROR] Failed to getConfig() in MongoDB:", error);
+        }
+    }
+
+    async getConfigs(filter) {
+        try {
+            const configs = await Config.find(filter).exec();
+            return configs;
+        } catch (error) {
+            console.error("[ERROR] Failed to getConfigs() in MongoDB:", error);
         }
     }
 }
