@@ -85,7 +85,7 @@ export function initHandlers() {
                 return;
             }
 
-            if (command === "/help") {
+            else if (command === "/help") {
                 const text =
                     `📚 <b>Помощь по использованию бота</b>\n\n` +
                     `Я бот для управления бесплатным VPN от <a href="${process.env.ORIGINAL_PROJECT}">${process.env.ORIGINAL_PROJECT_NAME}</a>. Вот что я умею:\n\n` +
@@ -113,7 +113,7 @@ export function initHandlers() {
                 return;
             }
 
-            if (command === "/rename") {
+            else if (command === "/rename") {
                 if (args.length < 3) {
                     await sendMessage(telegramId, 
                         `❗ Неверный формат команды. Используй: <code>/rename [ID конфигурации] [новое название]</code>\n` +
@@ -152,7 +152,7 @@ export function initHandlers() {
                 return;
             }
 
-            if (context.text === "/online") {
+            else if (command === "/online") {
                 const errorId = uuidv4();
                 try {
                     const servers = await db.getServers();
@@ -220,10 +220,12 @@ export function initHandlers() {
                 return;
             }
 
-            await sendMessage(telegramId, 
+            else {
+                await sendMessage(telegramId, 
                 `❗ Неизвестная команда. Используй /help для списка доступных команд или обратись в <a href="${process.env.SUPPORT_LINK}">техподдержку</a>.`, 
                 { parse_mode: "html" }
             );
+            }
 
         } catch (error) {
             console.error(`[ERROR][${errorId}][${context.from?.id || 'unknown'}]: Ошибка при обработке сообщения:`, error);
