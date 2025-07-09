@@ -1,6 +1,7 @@
 import { telegram, sendMessage } from "./telegram.js";
 import db from "../db/mongodb.js";
 import { InlineKeyboardBuilder } from "puregram";
+import { getWireGuardClients } from "../services/wireguard.js";
 import { v4 as uuidv4 } from 'uuid';
 
 // Utility to sanitize custom name
@@ -67,7 +68,7 @@ export function initHandlers() {
                     `Я бот для управления бесплатным VPN от <a href="${process.env.ORIGINAL_PROJECT}">${process.env.ORIGINAL_PROJECT_NAME}</a>.\n` +
                     `Ты можешь использовать бесплатный VPN с <b>1 ГБ ежедневного трафика</b>, который сбрасывается каждый день в полночь. 🌙\n\n` +
                     `Помощь можно получить по команде /help либо у технической поддержки.\n\n` +
-                    `🔁 Безлимитый VPN: <a href="${process.env.ORIGINAL_PROJECT}">${process.env.ORIGINAL_PROJECT_NAME}</a>`
+                    `🔁 Безлимитый VPN: <a href="${process.env.ORIGINAL_PROJECT}">${process.env.ORIGINAL_PROJECT_NAME}</a>\n` +
                     `💬 Если возникли вопросы, пиши в <a href="${process.env.SUPPORT_LINK}">техподдержку</a>.\n` +
                     `👩‍💻 Гитхаб проекта: <a href="https://github.com/Mvory9/teevpn-free">https://github.com/Mvory9/teevpn-free</a>\n\n` +
                     `Чтобы начать, просто используй кнопки ниже! 🚀\n`;
@@ -76,7 +77,7 @@ export function initHandlers() {
                     .textButton({ text: "🛒 Получить конфигурацию", payload: "get_free_configs_1" })
                     .textButton({ text: "💼 Мои конфигурации", payload: "my_configs_1" })
                     .row()
-                    .textButton({ text: "🖥 Сервера", payload: "servers" })
+                    .textButton({ text: "🖥 Сервера", payload: "online" })
                     .row()
                     .urlButton({ text: "💬 Техническая поддержка", url: process.env.SUPPORT_LINK });
 
@@ -90,6 +91,7 @@ export function initHandlers() {
                     `Я бот для управления бесплатным VPN от <a href="${process.env.ORIGINAL_PROJECT}">${process.env.ORIGINAL_PROJECT_NAME}</a>. Вот что я умею:\n\n` +
                     `🔹 <b>/start</b> — Начать работу с ботом и открыть главное меню.\n` +
                     `🔹 <b>/help</b> — Показать это сообщение с инструкциями.\n` +
+                    `🔹 <b>/online</b> — Онлайн, статистика и описание серверов.\n` +
                     `🔹 <b>/rename [ID конфигурации] [новое название]</b> — Изменить название конфигурации (до 20 символов).\n` +
                     `   Пример: <code>/rename 123e4567-e89b-12d3-a456-426614174000 Дом</code>\n` +
                     `   Для сброса названия: <code>/rename 123e4567-e89b-12d3-a456-426614174000 сброс</code>\n\n` +
@@ -98,7 +100,7 @@ export function initHandlers() {
                     `2. Выбери страну и сервер.\n` +
                     `3. Получи файл .conf или QR-код для подключения.\n\n` +
                     `📌 <b>Как использовать конфигурацию?</b>\n` +
-                    `1. Установи приложение WireGuard или AmneziaWG.\n` +
+                    `1. Установи приложение AmneziaWG.\n` +
                     `2. Импортируй .conf файл или отсканируй QR-код.\n` +
                     `3. Активируй VPN и наслаждайся! 🚀\n\n` +
                     `📌 <b>Ограничения:</b>\n` +
@@ -147,6 +149,74 @@ export function initHandlers() {
                     : `✅ Название конфигурации сброшено!`;
 
                 await sendMessage(telegramId, text, { parse_mode: "html" });
+                return;
+            }
+
+            if (context.text === "/online") {
+                const errorId = uuidv4();
+                try {
+                    const servers = await db.getServers();
+                    if (!servers || !Array.isArray(servers)) {
+                        throw new Error('Не удалось получить список серверов');
+                    }
+
+                    let text = `<b>🖥️ Статус серверов</b>\n\n`;
+                    const keyboard = new InlineKeyboardBuilder();
+
+                    if (servers.length === 0) {
+                        text += `😔 У проекта пока что нет серверов.\n`;
+                    } else {
+                        let totalOnline = 0;
+
+                        for (const server of servers) {
+                            const clientsOnServer = await getWireGuardClients(server);
+                            if (!clientsOnServer || !Array.isArray(clientsOnServer)) {
+                                console.warn(`[WARN][${errorId}][${server.serverLocationName}]: Не удалось получить клиентов`);
+                                continue;
+                            }
+
+                            const fiveMinWithMs = 5 * 60 * 1000;
+                            const timestamp = Date.now();
+                            const onlineClients = clientsOnServer.filter(client => 
+                                client.latestHandshakeAt && 
+                                timestamp - new Date(client.latestHandshakeAt).getTime() < fiveMinWithMs
+                            );
+                            const onlineOnServer = onlineClients.length || 0;
+                            totalOnline += onlineOnServer;
+
+                            text += `🌐 <b>${server.serverLocationName}</b> │ ${server.city}\n` +
+                                `├ 👥 <b>Онлайн:</b> <code>${onlineOnServer}</code>\n` +
+                                /*`${user.isAdmin ? `├ 📊 <b>Всего конфигураций:</b> <code>${totalCount}</code>\n` : ""}` +*/
+                                `├ 🔗 <b>Протокол:</b> ${server.type === "wg" ? "WireGuard" : "AmneziaWG"}\n` +
+                                `├ 🧠 <b>Нейросеть Gemini:</b> ${server.properties.gemini ? "✅" : "❌"}\n` +
+                                `└ 📺 <b>YouTube без рекламы:</b> ${server.properties.youtubeNoAds ? "✅" : "❌"}\n\n`;
+                        }
+
+                        text += `<b>🕸 Общий онлайн:</b> <code>${totalOnline}</code> человек.`;
+                    }
+
+                    keyboard.textButton({ text: "🔙 Назад", payload: "start" });
+
+                    await sendMessage(context.from.id, text, {
+                        parse_mode: "html",
+                        reply_markup: keyboard
+                    });
+                } catch (error) {
+                    console.error(`[ERROR][${errorId}][${context.from.id}]: Ошибка при обработке online:`, error);
+                    await sendMessage(context.from.id, 
+                        `❌ Произошла ошибка при получении информации о серверах. Обратитесь в техподдержку (${process.env.SUPPORT_LINK}) с кодом ошибки ${errorId}`, 
+                        { parse_mode: "html" }
+                    );
+                    // Уведомление админа
+                    if (process.env.SUPPORT_LINK.includes('t.me')) {
+                        await sendMessage(process.env.ADMIN_ID, 
+                            `⚠ Ошибка при получении статуса серверов для пользователя ${context.from.id}: ${error.message} (Код: ${errorId})`, 
+                            { parse_mode: "html" }
+                        ).catch(notifyError => {
+                            console.error(`[ERROR][${errorId}][Notify]: Не удалось уведомить техподдержку:`, notifyError);
+                        });
+                    }
+                }
                 return;
             }
 

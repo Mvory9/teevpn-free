@@ -1,16 +1,17 @@
 import { InlineKeyboardBuilder, MediaSource } from "puregram";
 import { createWireGuardClient, getWireGuardClientDataByConfigId, getWireguardClientConfig, configEdit, formatBytes } from "../services/wireguard.js";
 import { telegram, sendMessage, sendPhoto, sendDocument } from "./telegram.js";
-import { wireguardDeleteConfig } from "../services/wireguard.js"; 
+import { wireguardDeleteConfig, getWireGuardClients } from "../services/wireguard.js"; 
 import { generateQR } from "../services/qrcode.js";
 import db from "../db/mongodb.js";
 import { v4 as uuidv4 } from 'uuid';
+import "dotenv/config";
 
 export function initCallbacks() {
     telegram.updates.on("callback_query", async (context) => {
         const errorId = uuidv4();
         try {
-            if (!context.queryPayload || typeof context.queryPayload !== 'string' || context.queryPayload.length > 100) {
+            if (!context.queryPayload || typeof context.queryPayload !== 'string' || context.queryPayload.length > 64) {
                 throw new Error('Неверный payload коллбэка');
             }
             if (!context.from || !context.from.id || !/^\d+$/.test(context.from.id)) {
@@ -86,13 +87,16 @@ export function initCallbacks() {
                     `Я бот для управления бесплатным VPN от <a href="${process.env.ORIGINAL_PROJECT}">${process.env.ORIGINAL_PROJECT_NAME}</a>.\n` +
                     `Ты можешь использовать бесплатный VPN с <b>1 ГБ ежедневного трафика</b>, который сбрасывается каждый день в полночь. 🌙\n\n` +
                     `Помощь можно получить по команде /help либо у технической поддержки.\n\n` +
+                    `🔁 Безлимитый VPN: <a href="${process.env.ORIGINAL_PROJECT}">${process.env.ORIGINAL_PROJECT_NAME}</a>\n` +
+                    `💬 Если возникли вопросы, пиши в <a href="${process.env.SUPPORT_LINK}">техподдержку</a>.\n` +
+                    `👩‍💻 Гитхаб проекта: <a href="https://github.com/Mvory9/teevpn-free">https://github.com/Mvory9/teevpn-free</a>\n\n` +
                     `Чтобы начать, просто используй кнопки ниже! 🚀\n`;
 
                 const keyboard = new InlineKeyboardBuilder()
                     .textButton({ text: "🛒 Получить конфигурацию", payload: "get_free_configs_1" })
                     .textButton({ text: "💼 Мои конфигурации", payload: "my_configs_1" })
                     .row()
-                    .textButton({ text: "🖥 Сервера", payload: "servers" })
+                    .textButton({ text: "🖥 Сервера", payload: "online" })
                     .row()
                     .urlButton({ text: "💬 Техническая поддержка", url: process.env.SUPPORT_LINK });
 
@@ -514,6 +518,73 @@ export function initCallbacks() {
                     parse_mode: "html",
                     reply_markup: keyboard
                 });
+            }
+
+            if (context.queryPayload === "online") {
+                const errorId = uuidv4();
+                try {
+                    const servers = await db.getServers();
+                    if (!servers || !Array.isArray(servers)) {
+                        throw new Error('Не удалось получить список серверов');
+                    }
+
+                    let text = `<b>🖥️ Статус серверов</b>\n\n`;
+                    const keyboard = new InlineKeyboardBuilder();
+
+                    if (servers.length === 0) {
+                        text += `😔 У проекта пока что нет серверов.\n`;
+                    } else {
+                        let totalOnline = 0;
+
+                        for (const server of servers) {
+                            const clientsOnServer = await getWireGuardClients(server);
+                            if (!clientsOnServer || !Array.isArray(clientsOnServer)) {
+                                console.warn(`[WARN][${errorId}][${server.serverLocationName}]: Не удалось получить клиентов`);
+                                continue;
+                            }
+
+                            const fiveMinWithMs = 5 * 60 * 1000;
+                            const timestamp = Date.now();
+                            const onlineClients = clientsOnServer.filter(client => 
+                                client.latestHandshakeAt && 
+                                timestamp - new Date(client.latestHandshakeAt).getTime() < fiveMinWithMs
+                            );
+                            const onlineOnServer = onlineClients.length || 0;
+                            totalOnline += onlineOnServer;
+
+                            text += `🌐 <b>${server.serverLocationName}</b> │ ${server.city}\n` +
+                                `├ 👥 <b>Онлайн:</b> <code>${onlineOnServer}</code>\n` +
+                                /*`${user.isAdmin ? `├ 📊 <b>Всего конфигураций:</b> <code>${totalCount}</code>\n` : ""}` +*/
+                                `├ 🔗 <b>Протокол:</b> ${server.type === "wg" ? "WireGuard" : "AmneziaWG"}\n` +
+                                `├ 🧠 <b>Нейросеть Gemini:</b> ${server.properties.gemini ? "✅" : "❌"}\n` +
+                                `└ 📺 <b>YouTube без рекламы:</b> ${server.properties.youtubeNoAds ? "✅" : "❌"}\n\n`;
+                        }
+
+                        text += `<b>🕸 Общий онлайн:</b> <code>${totalOnline}</code> человек.`;
+                    }
+
+                    keyboard.textButton({ text: "🔙 Назад", payload: "start" });
+
+                    await sendMessage(context.from.id, text, {
+                        parse_mode: "html",
+                        reply_markup: keyboard
+                    });
+                } catch (error) {
+                    console.error(`[ERROR][${errorId}][${context.from.id}]: Ошибка при обработке online:`, error);
+                    await sendMessage(context.from.id, 
+                        `❌ Произошла ошибка при получении информации о серверах. Обратитесь в техподдержку (${process.env.SUPPORT_LINK}) с кодом ошибки ${errorId}`, 
+                        { parse_mode: "html" }
+                    );
+                    // Уведомление админа
+                    if (process.env.SUPPORT_LINK.includes('t.me')) {
+                        await sendMessage(process.env.ADMIN_ID, 
+                            `⚠ Ошибка при получении статуса серверов для пользователя ${context.from.id}: ${error.message} (Код: ${errorId})`, 
+                            { parse_mode: "html" }
+                        ).catch(notifyError => {
+                            console.error(`[ERROR][${errorId}][Notify]: Не удалось уведомить техподдержку:`, notifyError);
+                        });
+                    }
+                }
             }
 
         } catch (error) {
