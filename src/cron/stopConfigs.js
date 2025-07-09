@@ -18,7 +18,8 @@ async function stopConfigs() {
             throw new Error('Не удалось получить список серверов');
         }
 
-        const MAX_CLIENTS_PER_RUN = 100;
+        const configs = await db.getConfigs();
+
         for (const server of servers) {
             const clientsOnServer = await getWireGuardClients(server);
             if (!clientsOnServer || !Array.isArray(clientsOnServer)) {
@@ -27,7 +28,7 @@ async function stopConfigs() {
             }
 
             const freeClients = clientsOnServer.filter(client => client.name && client.name.startsWith("free_"));
-            for (const client of freeClients.slice(0, MAX_CLIENTS_PER_RUN)) {
+            for (const client of freeClients) {
                 const [_, clientTelegramId] = client.name.split("_");
                 if (!clientTelegramId || !/^\d+$/.test(clientTelegramId)) {
                     console.warn(`[WARN][${errorId}]: Неверный Telegram ID в имени клиента ${client.name}`);
@@ -35,7 +36,9 @@ async function stopConfigs() {
                 }
 
                 const sumOfTraffic = (client.transferRx || 0) + (client.transferTx || 0);
-                if (sumOfTraffic >= 1000000000 && client.enabled) {
+                const userConfigs = configs.find(user => user.telegramId === clientTelegramId);
+                const userTraffic = userConfigs.traffigLimitGB * 1000000000;
+                if (sumOfTraffic >= userTraffic && client.enabled) {
                     try {
                         const text = `⚠ Вы использовали более 1ГБ трафика за сегодня. Ваша конфигурация отключена до 00:00 по МСК.`;
                         const keyboard = new InlineKeyboardBuilder()
@@ -71,7 +74,7 @@ async function stopConfigs() {
 export async function setupCronStopConfigs() {
     const errorId = uuidv4();
     try {
-        cron.schedule("*/30 * * * * *", async () => {
+        cron.schedule("1 * * * * *", async () => {
             await stopConfigs();
         }, {
             timezone: "Europe/Moscow"

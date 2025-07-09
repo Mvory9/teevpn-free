@@ -70,6 +70,17 @@ class MongoDB {
         }
     }
 
+    async getUsers(filter = {}) {
+        const errorId = uuidv4();
+        try {
+            const users = await User.find(filter).exec();
+            return users;
+        } catch (error) {
+            console.error(`[ERROR][${errorId}]: Не удалось получить пользователей:`, error);
+            throw error;
+        }
+    }
+
     async regUser(telegramId) {
         const errorId = uuidv4();
         try {

@@ -4,6 +4,7 @@ import db from "./db/mongodb.js";
 import "dotenv/config";
 import { initCallbacks } from "./bot/callbacks.js";
 import { setupCronStopConfigs } from "./cron/stopConfigs.js";
+import { setupCronRestartConfigsAtMidnight } from "./cron/restartConfigsAtMidnight.js";
 
 // Environment variable validation schema
 const requiredEnvVars = [
@@ -71,6 +72,7 @@ async function main() {
         // Cron setup
         try {
             setupCronStopConfigs();
+            setupCronRestartConfigsAtMidnight();
         } catch (cronError) {
             throw new Error(`Не удалось настроить cron задачи: ${cronError.message}`);
         }
