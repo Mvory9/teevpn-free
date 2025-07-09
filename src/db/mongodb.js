@@ -24,7 +24,7 @@ class MongoDB {
         } catch (error) {
             console.error(`[ERROR][${errorId}]: Не удалось подключиться к MongoDB:`, error);
             if (process.env.SUPPORT_LINK.includes('t.me')) {
-                await sendMessage(process.env.SUPPORT_LINK.split('/').pop(), 
+                await sendMessage(process.env.ADMIN_ID, 
                     `⚠ Ошибка подключения к MongoDB: ${error.message} (Код: ${errorId})`, 
                     { parse_mode: "html" }
                 );
@@ -41,7 +41,7 @@ class MongoDB {
         } catch (error) {
             console.error(`[ERROR][${errorId}]: Не удалось отключиться от MongoDB:`, error);
             if (process.env.SUPPORT_LINK.includes('t.me')) {
-                await sendMessage(process.env.SUPPORT_LINK.split('/').pop(), 
+                await sendMessage(process.env.ADMIN_ID, 
                     `⚠ Ошибка отключения от MongoDB: ${error.message} (Код: ${errorId})`, 
                     { parse_mode: "html" }
                 );
@@ -269,22 +269,16 @@ class MongoDB {
         }
     }
 
-    async getConfigs(filter) {
+    async getConfigs(filter = {}) {
         const errorId = uuidv4();
         try {
-            if (!filter || typeof filter !== 'object') {
+            if (typeof filter !== 'object') {
                 throw new Error('Неверный фильтр для получения конфигураций');
             }
             const configs = await Config.find(filter).exec();
             return configs;
         } catch (error) {
             console.error(`[ERROR][${errorId}]: Не удалось получить конфигурации:`, error);
-            if (filter.telegramId && /^\d+$/.test(filter.telegramId)) {
-                await sendMessage(filter.telegramId, 
-                    `❌ Ошибка при получении конфигураций. Обратитесь в техподдержку (${process.env.SUPPORT_LINK}) с кодом ошибки ${errorId}`, 
-                    { parse_mode: "html" }
-                );
-            }
             throw error;
         }
     }
@@ -302,6 +296,26 @@ class MongoDB {
             if (filter.telegramId && /^\d+$/.test(filter.telegramId)) {
                 await sendMessage(filter.telegramId, 
                     `❌ Ошибка при обновлении конфигурации. Обратитесь в техподдержку (${process.env.SUPPORT_LINK}) с кодом ошибки ${errorId}`, 
+                    { parse_mode: "html" }
+                );
+            }
+            throw error;
+        }
+    }
+
+    async deleteConfig(filter) {
+        const errorId = uuidv4();
+        try {
+            if (!filter || typeof filter !== 'object' || !update || typeof update !== 'object') {
+                throw new Error('Неверные параметры для обновления конфигурации');
+            }
+            const config = await Config.deleteOne(filter).exec();
+            return config;
+        } catch (error) {
+            console.error(`[ERROR][${errorId}]: Не удалось удалить конфигурацию:`, error);
+            if (filter.telegramId && /^\d+$/.test(filter.telegramId)) {
+                await sendMessage(filter.telegramId, 
+                    `❌ Ошибка при удалении конфигурации. Обратитесь в техподдержку (${process.env.SUPPORT_LINK}) с кодом ошибки ${errorId}`, 
                     { parse_mode: "html" }
                 );
             }

@@ -58,7 +58,7 @@ async function restartConfigsAtMidnight() {
     } catch (error) {
         console.error(`[ERROR][${errorId}]: Ошибка при сбросе конфигураций:`, error);
         if (process.env.SUPPORT_LINK.includes('t.me')) {
-            await sendMessage(process.env.SUPPORT_LINK.split('/').pop(), 
+            await sendMessage(process.env.ADMIN_ID, 
                 `⚠ Ошибка при сбросе конфигураций: ${error.message} (Код: ${errorId})`, 
                 { parse_mode: "html" }
             );
@@ -78,7 +78,7 @@ export async function setupCronRestartConfigsAtMidnight() {
     } catch (error) {
         console.error(`[ERROR][${errorId}]: Не удалось настроить cron для сброса конфигураций:`, error);
         if (process.env.SUPPORT_LINK.includes('t.me')) {
-            await sendMessage(process.env.SUPPORT_LINK.split('/').pop(), 
+            await sendMessage(process.env.ADMIN_ID, 
                 `⚠ Ошибка настройки cron: ${error.message} (Код: ${errorId})`, 
                 { parse_mode: "html" }
             );

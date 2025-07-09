@@ -1,6 +1,7 @@
 import { InlineKeyboardBuilder, MediaSource } from "puregram";
 import { createWireGuardClient, getWireGuardClientDataByConfigId, getWireguardClientConfig, configEdit, formatBytes } from "../services/wireguard.js";
 import { telegram, sendMessage, sendPhoto, sendDocument } from "./telegram.js";
+import { wireguardDeleteConfig } from "../services/wireguard.js"; 
 import { generateQR } from "../services/qrcode.js";
 import db from "../db/mongodb.js";
 import { v4 as uuidv4 } from 'uuid';
@@ -359,7 +360,7 @@ export function initCallbacks() {
                     `\n\n✨ <b>Особенности сервера:</b>\n${features.join("\n")}` : 
                     "\n\n✨ <b>Особенности:</b> Базовые";
 
-                const trafficSum = configData.reduce(cfg => { return cfg.transferTx + cfg.transferRx });
+                const trafficSum = configData.transferTx + configData.transferRx;
 
                 const text = `<b>🔐 VPN: ${country.flag} ${server.country} (${protocolLabel}) ${config.customName ? `- ${config.customName}` : ""}</b>\n\n` +
                     `🌍 ${country.city} (${server.country})\n` +
@@ -368,7 +369,7 @@ export function initCallbacks() {
                     `📶 Трафик за последнее время:\n` +
                     `  ↗️ Отправлено: ${formatBytes(configData.transferTx || 0)}\n` +
                     `  ↙️ Принято: ${formatBytes(configData.transferRx || 0)}\n` +
-                    `  📡 Доступно на сегодня: ${formatBytes(trafficSum)}/${formatBytes(config.trafficLimitGB * 1000000000)}`
+                    `  📡 Доступно на сегодня: ${formatBytes(trafficSum)}/${formatBytes(config.trafficLimitGB * 1000000000)}` +
                     featuresText + 
                     `\n\n<b>✏️ Как изменить название?</b>\n` +
                     `<code>/rename ${config.configId} [название]</code>\n` +
@@ -476,7 +477,7 @@ export function initCallbacks() {
                         payload: `config_${configId}`
                     });
 
-                await sendPhoto(context.from.id, MediaSource.data(qrCode), {
+                await sendPhoto(context.from.id, qrCode, {
                     caption: text,
                     parse_mode: "html",
                     reply_markup: keyboard
@@ -499,7 +500,7 @@ export function initCallbacks() {
                     throw new Error('Страна не найдена');
                 }
 
-                await db.setConfig({ configId, telegramId: context.from.id }, { $set: { deleted: true } });
+                await db.deleteConfig({ configId, telegramId: context.from.id });
                 await wireguardDeleteConfig(context.from.id, server, configId);
 
                 const text = `🗑️ Конфигурация ${country.flag} ${server.country} (${server.city}) успешно удалена!`;

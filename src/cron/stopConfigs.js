@@ -63,7 +63,7 @@ async function stopConfigs() {
     } catch (error) {
         console.error(`[ERROR][${errorId}]: Ошибка при остановке конфигураций:`, error);
         if (process.env.SUPPORT_LINK.includes('t.me')) {
-            await sendMessage(process.env.SUPPORT_LINK.split('/').pop(), 
+            await sendMessage(process.env.ADMIN_ID, 
                 `⚠ Ошибка при остановке конфигураций: ${error.message} (Код: ${errorId})`, 
                 { parse_mode: "html" }
             );
@@ -83,7 +83,7 @@ export async function setupCronStopConfigs() {
     } catch (error) {
         console.error(`[ERROR][${errorId}]: Не удалось настроить cron для остановки конфигураций:`, error);
         if (process.env.SUPPORT_LINK.includes('t.me')) {
-            await sendMessage(process.env.SUPPORT_LINK.split('/').pop(), 
+            await sendMessage(process.env.ADMIN_ID, 
                 `⚠ Ошибка настройки cron: ${error.message} (Код: ${errorId})`, 
                 { parse_mode: "html" }
             );
