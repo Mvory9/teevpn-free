@@ -359,13 +359,16 @@ export function initCallbacks() {
                     `\n\n✨ <b>Особенности сервера:</b>\n${features.join("\n")}` : 
                     "\n\n✨ <b>Особенности:</b> Базовые";
 
+                const trafficSum = configData.reduce(cfg => { return cfg.transferTx + cfg.transferRx });
+
                 const text = `<b>🔐 VPN: ${country.flag} ${server.country} (${protocolLabel}) ${config.customName ? `- ${config.customName}` : ""}</b>\n\n` +
                     `🌍 ${country.city} (${server.country})\n` +
                     `📡 Протокол: <b>${protocolLabel}</b>\n` +
                     `🤝 Последнее соединение: ${configData.latestHandshakeAt || 'Никогда'}\n` +
                     `📶 Трафик за последнее время:\n` +
                     `  ↗️ Отправлено: ${formatBytes(configData.transferTx || 0)}\n` +
-                    `  ↙️ Принято: ${formatBytes(configData.transferRx || 0)}` +
+                    `  ↙️ Принято: ${formatBytes(configData.transferRx || 0)}\n` +
+                    `  📡 Доступно на сегодня: ${formatBytes(trafficSum)}/${formatBytes(config.trafficLimitGB * 1000000000)}`
                     featuresText + 
                     `\n\n<b>✏️ Как изменить название?</b>\n` +
                     `<code>/rename ${config.configId} [название]</code>\n` +
