@@ -1,135 +1,165 @@
-import { InlineKeyboardBuilder } from "puregram";
-import { sendMessage, telegram } from "./telegram.js";
+import { telegram, sendMessage } from "./telegram.js";
 import db from "../db/mongodb.js";
+import { InlineKeyboardBuilder } from "puregram";
+import { v4 as uuidv4 } from 'uuid';
+
+// Utility to sanitize custom name
+function sanitizeCustomName(name) {
+    return name ? name.replace(/[^a-zA-Z0-9а-яА-Я_-]/g, '').slice(0, 20) : null;
+}
 
 export function initHandlers() {
     telegram.updates.on("message", async (context) => {
-        if (!context.text) return; // Ignore non-text messages
-
-        let user = await db.getUser(context.from.id);
-        if (!user) await db.regUser(context.from.id);
-        user = await db.getUser(context.from.id);
-
-        if (!user.isAcceptTerms) {
-            const { firstName, lastName } = context.from;
-            const fullName = `${firstName || ""} ${lastName || ""}`.trim() || "Пользователь";
-
-            const text =
-                `Привет, <b>${fullName}</b>! 👋\n\n` +
-                `Я бот для управления бесплатным VPN от <a href="${process.env.ORIGINAL_PROJECT}">${process.env.ORIGINAL_PROJECT_NAME}</a>.\n` +
-                `Ты получишь <b>1 ГБ ежедневного трафика</b>, который сбрасывается каждый день в полночь. 🌙\n\n` +
-                `Чтобы начать, пожалуйста, прими наши условия использования:\n\n` +
-                `<b>Условия использования:</b>\n` +
-                `1. VPN бесплатный и предназначен только для личного использования.\n` +
-                `2. Запрещено использование для любых незаконных действий.\n` +
-                `3. Мы не несем ответственности за последствия использования сервиса.\n\n` +
-                `<b>Почему VPN бесплатный?</b> 🤔\n` +
-                `Мы предлагаем бесплатный доступ, чтобы ты мог оценить качество нашего сервиса.\n` +
-                `Если понравится, ты можешь перейти на платную версию с безлимитным трафиком и приоритетной поддержкой.\n\n` +
-                `Согласен с условиями? Нажми кнопку ниже, чтобы начать пользоваться VPN! 🚀\n`;
-
-            const keyboard = new InlineKeyboardBuilder()
-                .textButton({ text: "✅ Принять условия и начать", payload: "accept_terms" });
-
-            await sendMessage(context.from.id, text, { parse_mode: "html", reply_markup: keyboard });
-
-            return;
-        }
-
-        if (context.text.toLowerCase() === "/start") {
-            const { firstName, lastName } = context.from;
-            const fullName = `${firstName || ""} ${lastName || ""}`.trim() || "Пользователь";
-
-            const text =
-                `Привет, <b>${fullName}</b>! 👋\n\n` +
-                `Я бот для управления бесплатным VPN от <a href="${process.env.ORIGINAL_PROJECT}">${process.env.ORIGINAL_PROJECT_NAME}</a>.\n` +
-                `Ты можешь использовать бесплатный VPN с <b>1 ГБ ежедневного трафика</b>, который сбрасывается каждый день в полночь. 🌙\n\n` +
-                `Помощь можно получить по команде /help либо у технической поддержки.\n\n` +
-                `Чтобы начать, просто используй кнопки ниже! 🚀\n`;
-
-            const keyboard = new InlineKeyboardBuilder()
-                .textButton({ text: "🛒 Получить конфигурацию", payload: "get_free_configs_1" })
-                .textButton({ text: "💼 Мои конфигурации", payload: "my_configs_1" })
-                .row()
-                .textButton({ text: "🖥 Сервера", payload: "servers" })
-                .row()
-                .urlButton({ text: "💬 Техническая поддержка", url: process.env.SUPPORT_LINK });
-
-            await sendMessage(context.from.id, text, { parse_mode: "html", reply_markup: keyboard });
-        }
-
-        if (context.text.toLowerCase() === "/help") {
-            const text = `<b>🌟 Справка по боту ${process.env.PROJECT_NAME} 🌟</b>\n\n` +
-                `📋 <b>Команды бота:</b>\n` +
-                `  • <code>/start</code> — Запустить бота и открыть главное меню\n` +
-                `  • <code>/help</code> — Показать вспомогательное сообщение\n` +
-                `  • <code>/id</code> — Узнать ваш Telegram ID\n\n` +
-                `🔗 <b>Полезные ссылки:</b>\n` +
-                `  • <a href="${process.env.CHANNEL_LINK}">📢 Наш телеграм канал</a>\n` +
-                `  • <a href="${process.env.SUPPORT_LINK}">💬 Техническая поддержка</a>\n\n` +
-                `📲 <b>Установка WireGuard:</b>\n` +
-                `  • <b>Windows:</b> Скачайте <a href="https://download.wireguard.com/windows-client/wireguard-installer.exe">WireGuard</a> с официального сайта, установите, импортируйте .conf файл.\n` +
-                `  • <b>macOS:</b> Установите <a href="https://apps.apple.com/ru/app/wireguard/id1441195209">WireGuard</a> из App Store, добавьте конфигурацию через .conf файл или QR-код.\n` +
-                `  • <b>Android:</b> Установите приложение <a href="https://play.google.com/store/apps/details?id=com.wireguard.android">WireGuard</a> из Google Play, импортируйте конфигурацию.\n` +
-                `  • <b>iOS:</b> Загрузите <a href="https://apps.apple.com/ru/app/wireguard/id1441195209">WireGuard</a> из App Store, добавьте конфигурацию через QR-код или файл.\n` +
-                `  • <b>Linux:</b> Установите <a href="https://www.wireguard.com/install/">WireGuard</a> через пакетный менеджер дистрибутива, импортируйте .conf.\n\n` +
-                `🔐 <b>Установка AmneziaWG:</b>\n` +
-                `  • <b>Windows:</b> Скачайте <a href="https://github.com/amnezia-vpn/amneziawg-windows-client/releases/download/1.0.0/amneziawg-amd64-1.0.0.msi">AmneziaWG</a> клиент, установите, импортируйте конфигурацию.\n` +
-                `  • <b>macOS:</b> Установите <a href="https://apps.apple.com/ru/app/amneziawg/id6478942365">AmneziaWG</a>, добавьте .conf файл или отсканируйте QR-код.\n` +
-                `  • <b>Android:</b> Загрузите <a href="https://play.google.com/store/apps/details?id=org.amnezia.awg">AmneziaWG</a> из Google Play, импортируйте конфигурацию.\n` +
-                `  • <b>iOS:</b> Установите <a href="https://apps.apple.com/ru/app/amneziawg/id6478942365">AmneziaWG</a> из App Store, добавьте конфигурацию через файл или QR.\n` +
-                `  • <b>Linux:</b> Установите <a href="https://amneziavpn.org/ru/documentation/installing-app-on-linux/">AmneziaWG</a>, следуя инструкциям на сайте, импортируйте .conf.\n\n` +
-                `<b>🛑 Инструкция по настройке:</b>\n` +
-                `1. Установите приложение AmneziaWG (в команде /help есть все ссылки на скачивание).\n` +
-                `2. Скачайте файл конфигурации ([Протокол] .conf) ИЛИ получите QR-код.\n` +
-                `3. Импортируйте туннель в приложение AmneziaWG, используя скачанный файл .conf ИЛИ отсканируйте QR-код в приложении.\n` +
-                `4. Проверьте работу VPN. При возникновении вопросов обращайтесь в <a href="${process.env.SUPPORT_LINK}">техподдержку</a>.\n\n` +
-                `💡 <b>Нужна помощь?</b>\n` +
-                `Если у вас есть вопросы или проблемы с настройкой, наша <a href="${process.env.SUPPORT_LINK}">техподдержка</a> всегда готова помочь! 🚀`;
-
-            const keyboard = new InlineKeyboardBuilder()
-                .urlButton({ text: "💬 Техническая поддержка", url: process.env.SUPPORT_LINK });
-
-            await sendMessage(context.from.id, text, { parse_mode: "html", reply_markup: keyboard });
-        }
-
-        if (context.text.toLowerCase() === "/id") {
-            const text = `🆔 Ваш Telegram ID: <code>${context.from.id}</code>`;
-            await sendMessage(context.from.id, text, { parse_mode: "html" });
-            return;
-        }
-
-        if (context.text.startsWith("/rename")) {
-            const configId = context.text.split(" ")[1];
-            const configNewName = context.text.split(" ").slice(2).join(" ").slice(0, 20);
-
-            if (!configId || !configNewName) {
-                await sendMessage(context.from.id, "❌ Неверный формат команды. Используйте: /rename <configId> <новое имя>");
-                return;
+        const errorId = uuidv4();
+        try {
+            if (!context.from || !context.from.id || !/^\d+$/.test(context.from.id)) {
+                throw new Error('Неверный Telegram ID пользователя');
+            }
+            if (!context.text || typeof context.text !== 'string') {
+                throw new Error('Неверный формат сообщения');
             }
 
-            const config = await db.getConfig({ configId });
-            if (!config) {
+            const telegramId = Number(context.from.id);
+            console.log(`[INFO][${telegramId}]: Message received: ${context.text}`);
+
+            let user = await db.getUser(telegramId);
+            if (!user) {
+                user = await db.regUser(telegramId);
+                if (!user) {
+                    throw new Error('Не удалось зарегистрировать пользователя');
+                }
+            }
+
+            if (!user.isAcceptTerms) {
+                const { firstName, lastName } = context.from;
+                const fullName = `${firstName || ""} ${lastName || ""}`.trim() || "Пользователь";
+
+                const text =
+                    `Привет, <b>${fullName}</b>! 👋\n\n` +
+                    `Я бот для управления бесплатным VPN от <a href="${process.env.ORIGINAL_PROJECT}">${process.env.ORIGINAL_PROJECT_NAME}</a>.\n` +
+                    `Ты получишь <b>1 ГБ ежедневного трафика</b>, который сбрасывается каждый день в полночь. 🌙\n\n` +
+                    `Чтобы начать, пожалуйста, прими наши условия использования:\n\n` +
+                    `<b>Условия использования:</b>\n` +
+                    `1. VPN бесплатный и предназначен только для личного использования.\n` +
+                    `2. Запрещено использование для любых незаконных действий.\n` +
+                    `3. Мы не несем ответственности за последствия использования сервиса.\n\n` +
+                    `<b>Почему VPN бесплатный?</b> 🤔\n` +
+                    `Мы предлагаем бесплатный доступ, чтобы ты мог оценить качество нашего сервиса.\n` +
+                    `Если понравится, ты можешь перейти на платную версию с безлимитным трафиком и приоритетной поддержкой.\n\n` +
+                    `Согласен с условиями? Нажми кнопку ниже, чтобы начать пользоваться VPN! 🚀\n`;
+
                 const keyboard = new InlineKeyboardBuilder()
-                    .textButton({ text: "💼 Мои VPN", payload: "my_configs_1" });
+                    .textButton({ text: "✅ Принять условия и начать", payload: "accept_terms" });
 
-                await sendMessage(context.from.id, "❌ Конфигурация не найдена. Проверьте ID.", {
-                    parse_mode: "html",
-                    reply_markup: keyboard
-                });
-
+                await sendMessage(telegramId, text, { parse_mode: "html", reply_markup: keyboard });
                 return;
             }
 
-            await db.setConfig({ telegramId: context.from.id, configId }, { customName: configNewName });
+            const args = context.text.split(/\s+/);
+            const command = args[0].toLowerCase();
 
-            const keyboard = new InlineKeyboardBuilder()
-                    .textButton({ text: "💼 Мои VPN", payload: "my_configs_1" });
+            if (command === "/start") {
+                const { firstName, lastName } = context.from;
+                const fullName = `${firstName || ""} ${lastName || ""}`.trim() || "Пользователь";
 
-            await sendMessage(context.from.id, `✅ Конфигурация успешно переименована в "${configNewName}".`, {
-                parse_mode: "html",
-                reply_markup: keyboard
-            });
+                const text =
+                    `Привет, <b>${fullName}</b>! 👋\n\n` +
+                    `Я бот для управления бесплатным VPN от <a href="${process.env.ORIGINAL_PROJECT}">${process.env.ORIGINAL_PROJECT_NAME}</a>.\n` +
+                    `Ты можешь использовать бесплатный VPN с <b>1 ГБ ежедневного трафика</b>, который сбрасывается каждый день в полночь. 🌙\n\n` +
+                    `Помощь можно получить по команде /help либо у технической поддержки.\n\n` +
+                    `Чтобы начать, просто используй кнопки ниже! 🚀\n`;
+
+                const keyboard = new InlineKeyboardBuilder()
+                    .textButton({ text: "🛒 Получить конфигурацию", payload: "get_free_configs_1" })
+                    .textButton({ text: "💼 Мои конфигурации", payload: "my_configs_1" })
+                    .row()
+                    .textButton({ text: "🖥 Сервера", payload: "servers" })
+                    .row()
+                    .urlButton({ text: "💬 Техническая поддержка", url: process.env.SUPPORT_LINK });
+
+                await sendMessage(telegramId, text, { parse_mode: "html", reply_markup: keyboard });
+                return;
+            }
+
+            if (command === "/help") {
+                const text =
+                    `📚 <b>Помощь по использованию бота</b>\n\n` +
+                    `Я бот для управления бесплатным VPN от <a href="${process.env.ORIGINAL_PROJECT}">${process.env.ORIGINAL_PROJECT_NAME}</a>. Вот что я умею:\n\n` +
+                    `🔹 <b>/start</b> — Начать работу с ботом и открыть главное меню.\n` +
+                    `🔹 <b>/help</b> — Показать это сообщение с инструкциями.\n` +
+                    `🔹 <b>/rename [ID конфигурации] [новое название]</b> — Изменить название конфигурации (до 20 символов).\n` +
+                    `   Пример: <code>/rename 123e4567-e89b-12d3-a456-426614174000 Дом</code>\n` +
+                    `   Для сброса названия: <code>/rename 123e4567-e89b-12d3-a456-426614174000 сброс</code>\n\n` +
+                    `📌 <b>Как получить конфигурацию?</b>\n` +
+                    `1. Нажми "Получить конфигурацию" в меню.\n` +
+                    `2. Выбери страну и сервер.\n` +
+                    `3. Получи файл .conf или QR-код для подключения.\n\n` +
+                    `📌 <b>Как использовать конфигурацию?</b>\n` +
+                    `1. Установи приложение WireGuard или AmneziaWG.\n` +
+                    `2. Импортируй .conf файл или отсканируй QR-код.\n` +
+                    `3. Активируй VPN и наслаждайся! 🚀\n\n` +
+                    `📌 <b>Ограничения:</b>\n` +
+                    `— Бесплатный доступ: 1 ГБ трафика в день.\n` +
+                    `— Трафик сбрасывается ежедневно в 00:00 по МСК.\n\n` +
+                    `💬 Если возникли вопросы, пиши в <a href="${process.env.SUPPORT_LINK}">техподдержку</a>.\n` +
+                    `👩‍💻 Гитхаб проекта: <a href="https://github.com/Mvory9/teevpn-free">https://github.com/Mvory9/teevpn-free</a>`;
+
+                await sendMessage(telegramId, text, { parse_mode: "html" });
+                return;
+            }
+
+            if (command === "/rename") {
+                if (args.length < 3) {
+                    await sendMessage(telegramId, 
+                        `❗ Неверный формат команды. Используй: <code>/rename [ID конфигурации] [новое название]</code>\n` +
+                        `Пример: <code>/rename 123e4567-e89b-12d3-a456-426614174000 Дом</code>`, 
+                        { parse_mode: "html" }
+                    );
+                    return;
+                }
+
+                const configId = args[1];
+                const customName = args.slice(2).join(" ");
+                if (!configId || !/^[0-9a-f-]{36}$/.test(configId)) {
+                    throw new Error('Неверный ID конфигурации');
+                }
+                if (customName.length > 20) {
+                    throw new Error('Название конфигурации слишком длинное (максимум 20 символов)');
+                }
+
+                const config = await db.getConfig({ telegramId, configId });
+                if (!config) {
+                    await sendMessage(telegramId, 
+                        `❌ Конфигурация не найдена. Проверьте ID конфигурации или обратитесь в техподдержку (${process.env.SUPPORT_LINK}) с кодом ошибки ${errorId}`, 
+                        { parse_mode: "html" }
+                    );
+                    return;
+                }
+
+                const sanitizedName = customName.toLowerCase() === "сброс" ? null : sanitizeCustomName(customName);
+                await db.setConfig({ telegramId, configId }, { $set: { customName: sanitizedName } });
+
+                const text = sanitizedName 
+                    ? `✅ Название конфигурации успешно изменено на "${sanitizedName}"!`
+                    : `✅ Название конфигурации сброшено!`;
+
+                await sendMessage(telegramId, text, { parse_mode: "html" });
+                return;
+            }
+
+            await sendMessage(telegramId, 
+                `❗ Неизвестная команда. Используй /help для списка доступных команд или обратись в <a href="${process.env.SUPPORT_LINK}">техподдержку</a>.`, 
+                { parse_mode: "html" }
+            );
+
+        } catch (error) {
+            console.error(`[ERROR][${errorId}][${context.from?.id || 'unknown'}]: Ошибка при обработке сообщения:`, error);
+            if (context.from?.id && /^\d+$/.test(context.from.id)) {
+                await sendMessage(context.from.id, 
+                    `❌ Произошла ошибка. Обратитесь в техподдержку (${process.env.SUPPORT_LINK}) с кодом ошибки ${errorId}`, 
+                    { parse_mode: "html" }
+                );
+            }
         }
     });
 }
