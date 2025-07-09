@@ -3,6 +3,7 @@ import { initHandlers } from "./bot/handlers.js";
 import db from "./db/mongodb.js";
 import "dotenv/config";
 import { initCallbacks } from "./bot/callbacks.js";
+import { setupCronStopConfigs } from "./cron/stopConfigs.js";
 
 async function main() {
     try {
@@ -38,6 +39,9 @@ async function main() {
         startTelegramPolling();
         initHandlers();
         initCallbacks();
+
+        // Cron
+        setupCronStopConfigs();
     } catch (error) {
         console.error("[ERROR] Start was failed:", error);
         process.exit(1);

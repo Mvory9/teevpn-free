@@ -46,3 +46,16 @@ export async function sendPhoto(chatId, base64Data, caption, options = {}) {
         throw new Error(`Ошибка при отправке фото: ${error.message}`);
     }
 }
+
+export async function sendDocument(chatId, document, options = {}) {
+    try {
+        await telegram.api.sendDocument({
+            chat_id: chatId,
+            document: document,
+            ...options
+        });
+    } catch (error) {
+        console.log(`[ERROR]:[${chatId}] Ошибка при отправке документа:`, error);
+        throw new Error(`Ошибка при отправке документа: ${error.message}`);
+    }
+}

@@ -1,7 +1,6 @@
 import WireGuardAPI from "wg-easy-api";
-import { telegram } from "../bot/telegram.js";
 import db from "../db/mongodb.js";
-import { Config } from "../db/schemas.js";
+import "dotenv/config";
 
 export async function createWireGuardClient(server, telegramId) {
     try {
@@ -97,8 +96,7 @@ export async function getWireGuardClientDataByConfigId(server, configId) {
 }
 
 export async function wireguardEnableConfig(server, clientId) {
-    const { Config } = await initializeModels();
-    const config = await Config.findOne({ configId: clientId }).exec();
+    const config = await db.getConfig({ configId: clientId });
     const telegramId = config ? config.telegramId : "Неизвестно";
 
     try {
@@ -115,8 +113,7 @@ export async function wireguardEnableConfig(server, clientId) {
 }
 
 export async function wireguardDisableConfig(server, clientId) {
-    const { Config } = await initializeModels();
-    const config = await Config.findOne({ configId: clientId }).exec();
+    const config = await db.getConfig({ configId: clientId });
     const telegramId = config ? config.telegramId : "Неизвестно";
 
     try {
@@ -176,7 +173,91 @@ export async function getWireguardClientConfig(server, clientId) {
 }
 
 export function configEdit(configText, protocolLabel) {
-    return configText;
+    const protocolInterfaceFields = {
+        WireGuard: {
+            MTU: '1332',
+            DNS: '1.1.1.1'
+        },
+        AmneziaWG: {
+            MTU: '1332',
+            DNS: '1.1.1.1',
+            Jc: '3',
+            Jmin: '40',
+            Jmax: '70',
+            S1: '0',
+            S2: '0',
+            H1: '1',
+            H2: '2',
+            H3: '3',
+            H4: '4'
+        }
+    };
+
+    // Validate protocolLabel
+    if (!protocolInterfaceFields[protocolLabel]) {
+        throw new Error(`Unsupported protocol: ${protocolLabel}`);
+    }
+
+    // Unescape newlines in the config text
+    const actualConfig = configText.replace(/\\n/g, '\n').replace(/^"|"$/g, '');
+
+    // Split configText into lines
+    const lines = actualConfig.split('\n').map(line => line.trim()).filter(line => line);
+    let inInterfaceSection = false;
+    let interfaceLines = [];
+    let otherLines = [];
+    const fieldsToUpdate = protocolInterfaceFields[protocolLabel];
+    const updatedFields = new Set();
+
+    // Parse lines and separate [Interface] section
+    for (let line of lines) {
+        if (line === '[Interface]') {
+            inInterfaceSection = true;
+            interfaceLines.push(line);
+            continue;
+        }
+        if (line.startsWith('[') && inInterfaceSection) {
+            inInterfaceSection = false;
+        }
+        if (inInterfaceSection) {
+            interfaceLines.push(line);
+        } else {
+            otherLines.push(line);
+        }
+    }
+
+    // Process [Interface] lines
+    const newInterfaceLines = [];
+    for (let line of interfaceLines) {
+        if (line === '[Interface]') {
+            newInterfaceLines.push(line);
+            continue;
+        }
+
+        let matched = false;
+        for (const [field, value] of Object.entries(fieldsToUpdate)) {
+            if (line.startsWith(`${field} =`)) {
+                newInterfaceLines.push(`${field} = ${value}`);
+                updatedFields.add(field);
+                matched = true;
+                break;
+            }
+        }
+        if (!matched) {
+            newInterfaceLines.push(line);
+        }
+    }
+
+    // Add any missing fields
+    for (const [field, value] of Object.entries(fieldsToUpdate)) {
+        if (!updatedFields.has(field)) {
+            newInterfaceLines.push(`${field} = ${value}`);
+        }
+    }
+
+    // Combine all lines with proper formatting
+    const resultLines = [...newInterfaceLines, '', ...otherLines];
+    return resultLines.join('\n');
 }
 
 export function formatBytes(bytes) {

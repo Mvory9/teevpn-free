@@ -71,10 +71,19 @@ class MongoDB {
         }
     }
 
-    async getServer(filter) {
+    async getServer(filter = {}) {
         try {
             const server = await Server.findOne(filter).exec();
             return server;
+        } catch (error) {
+            console.error("[ERROR] Failed to getServer() in MongoDB:", error);
+        }
+    }
+
+    async getServers(filter = {}) {
+        try {
+            const servers = await Server.find(filter).exec();
+            return servers;
         } catch (error) {
             console.error("[ERROR] Failed to getServer() in MongoDB:", error);
         }

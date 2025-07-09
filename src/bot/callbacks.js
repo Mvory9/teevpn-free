@@ -1,10 +1,8 @@
-import { InlineKeyboardBuilder } from "puregram";
+import { InlineKeyboardBuilder, MediaSource } from "puregram";
 import { createWireGuardClient, getWireGuardClientDataByConfigId, getWireguardClientConfig, configEdit, formatBytes } from "../services/wireguard.js";
-import { telegram, sendMessage, sendPhoto } from "./telegram.js";
+import { telegram, sendMessage, sendPhoto, sendDocument } from "./telegram.js";
 import { generateQR } from "../services/qrcode.js";
 import db from "../db/mongodb.js";
-
-const SWITCH_COUNTRY = "s_c";
 
 export function initCallbacks() {
     telegram.updates.on("callback_query", async (context) => {
@@ -337,23 +335,48 @@ export function initCallbacks() {
             const keyboard = new InlineKeyboardBuilder()
                 .textButton({
                     text: `📂 ${protocolLabel} .conf`,
-                    payload: `${server.typeProtocol}_${server.serverLocationName}_${configId}`
+                    payload: `conf_${server.serverLocationName}_${configId}`
                 })
                 .textButton({ text:
                     `🔐 ${protocolLabel} QR`,
-                    payload: ` ${server.serverLocationName}_${configId}`
+                    payload: `qr_${server.serverLocationName}_${configId}`
                 })
                 .row()
                 .textButton({ text: "🗑️ Удалить", payload: `delete_${server.serverLocationName}_${configId}` })
                 .row()
-                .textButton({ 
-                    text: "🌍 Переключить страну", 
-                    payload: `${SWITCH_COUNTRY}_start_${configId}` 
-                })
-                .row()
                 .textButton({ text: "🔙 Назад", payload: `my_configs_1` });
 
             await sendMessage(context.from.id, text, { parse_mode: "html", reply_markup: keyboard });
+        }
+
+        if (context.queryPayload.startsWith("conf_")) {
+            const serverLocationName = context.queryPayload.split("_")[1];
+            const configId = context.queryPayload.split("_")[2];
+
+            const server = await db.getServer({ serverLocationName });
+            const country = await db.getCountry({ country: server.country });
+            const configData = await getWireguardClientConfig(server, configId);
+            
+            const protocolLabel = server.type === "wg" ? "WireGuard" : "AmneziaWG";
+
+            const modifiedConfig = configEdit(JSON.stringify(configData.data), protocolLabel).replaceAll(server.ip, `${serverLocationName.replaceAll("-", "").toLowerCase()}.${process.env.DOMAIN}`);
+            const text = `📄 Файл конфигурации ${protocolLabel} для ${serverLocationName} (${country.flag} ${country.city}, ${country.country})`;
+
+            const keyboard = new InlineKeyboardBuilder()
+                .textButton({
+                    text: "🔙 Назад",
+                    payload: `config_${configId}`
+                });
+
+            const document = MediaSource.buffer(Buffer.from(modifiedConfig, "utf-8"), {
+                filename: `${serverLocationName.replaceAll("-", "").slice(0, 4)}${context.from.id}.conf`
+            });
+
+            await sendDocument(context.from.id, document, {
+                reply_markup: keyboard,
+                parse_mode: "html",
+                caption: text,
+            })
         }
 
         if (context.queryPayload.startsWith("qr_")) {
@@ -361,14 +384,15 @@ export function initCallbacks() {
             const configId = context.queryPayload.split("_")[2];
 
             const server = await db.getServer({ serverLocationName });
+            const country = await db.getCountry({ country: server.country });
             const configData = await getWireguardClientConfig(server, configId);
             
             const protocolLabel = server.type === "wg" ? "WireGuard" : "AmneziaWG";
 
-            const modifiedConfig = await configEdit(JSON.stringify(configData.data), protocolLabel);
+            const modifiedConfig = configEdit(JSON.stringify(configData.data), protocolLabel).replaceAll(server.ip, `${serverLocationName.replaceAll("-", "").toLowerCase()}.${process.env.DOMAIN}`);
 
             const url = await generateQR(modifiedConfig);
-            const text = `📷 QR-код ${protocolLabel} для ${server.serverLocationName}`;
+            const text = `📷 QR-код ${protocolLabel} для ${serverLocationName} (${country.flag} ${country.city}, ${country.country})`;
             const keyboard = new InlineKeyboardBuilder()
                 .textButton({
                     text: "🔙 Назад",
@@ -378,6 +402,51 @@ export function initCallbacks() {
             await sendPhoto(context.from.id, url, text, {
                 parse_mode: "html",
                 reply_markup: keyboard
+            });
+        }
+
+        if (context.queryPayload.startsWith("delete_")) {
+            const serverLocationName = context.queryPayload.split("_")[1];
+            const configId = context.queryPayload.split("_")[2];
+
+            const keyboard = new InlineKeyboardBuilder()
+                .textButton({
+                    text: "✅ Подтвердить удаление",
+                    payload: `confirm_delete_${serverLocationName}_${configId}`
+                })
+                .textButton({
+                    text: "❌ Отмена",
+                    payload: `config_${configId}`
+                });
+
+            await sendMessage(context.from.id, `Вы уверены, что хотите удалить конфигурацию? После Вы можете создать новую!`, {
+                parse_mode: "html",
+                reply_markup: keyboard
+            });
+        }
+
+        if (context.queryPayload.startsWith("confirm_delete_")) {
+            const serverLocationName = context.queryPayload.split("_")[2];
+            const configId = context.queryPayload.split("_")[3];
+
+            const server = await db.getServer({ serverLocationName });
+
+            await wireguardDeleteConfig(context.from.id, server, configId);
+
+            const keyboard = new InlineKeyboardBuilder()
+                .textButton({
+                    text: "🛒 Получить новую конфигурацию",
+                    payload: "get_free_configs_1"
+                })
+                .row()
+                .textButton({
+                    text: "🔙 Назад",
+                    payload: `my_configs_1`
+                });
+
+            await sendMessage(context.from.id, `✅ Конфигурация для ${country.flag} ${server.country} (${server.city}) успешно удалена!`, {
+                reply_markup: keyboard,
+                parse_mode: "html"
             });
         }
     });
